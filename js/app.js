@@ -17,6 +17,7 @@
         return {
           read: s.read && typeof s.read === "object" ? s.read : {},
           favs: Array.isArray(s.favs) ? [...new Set(s.favs)] : [],
+          owned: Array.isArray(s.owned) ? [...new Set(s.owned)] : [],
           badges: Array.isArray(s.badges) ? s.badges : [],
           shelfName: cleanShelfName(s.shelfName),
           readSort: s.readSort === "oldest" ? "oldest" : DEFAULT_READ_SORT
@@ -27,7 +28,7 @@
   }
 
   function defaultState() {
-    return { read: {}, favs: [], badges: [], shelfName: DEFAULT_SHELF_NAME, readSort: DEFAULT_READ_SORT };
+    return { read: {}, favs: [], owned: [], badges: [], shelfName: DEFAULT_SHELF_NAME, readSort: DEFAULT_READ_SORT };
   }
 
   function cleanShelfName(value) {
@@ -41,16 +42,21 @@
   const readCount = () => Object.keys(state.read).length;
   const isRead = id => Object.prototype.hasOwnProperty.call(state.read, id);
   const isFav = id => state.favs.includes(id);
+  const isOwned = id => state.owned.includes(id);
 
   /* ---------- elements ---------- */
   const $ = sel => document.querySelector(sel);
   const bookGrid = $("#bookGrid");
+  const ownedGrid = $("#ownedGrid");
   const readGrid = $("#readGrid");
   const favGrid = $("#favGrid");
   const searchInput = $("#searchInput");
+  const ownedSearchInput = $("#ownedSearchInput");
   const readSearchInput = $("#readSearchInput");
   const seriesFilter = $("#seriesFilter");
+  const ownedSeriesFilter = $("#ownedSeriesFilter");
   const sortSelect = $("#sortSelect");
+  const ownedSortSelect = $("#ownedSortSelect");
   const readSortSelect = $("#readSortSelect");
   const favReadFilter = $("#favReadFilter");
   const shelfNameInput = $("#shelfNameInput");
@@ -75,22 +81,91 @@
   })();
 
   /* ---------- series filter options ---------- */
-  SERIES_NAMES.forEach(name => {
-    const opt = document.createElement("option");
-    opt.value = name;
-    opt.textContent = name;
-    seriesFilter.appendChild(opt);
+  [seriesFilter, ownedSeriesFilter].forEach(select => {
+    SERIES_NAMES.forEach(name => {
+      const opt = document.createElement("option");
+      opt.value = name;
+      opt.textContent = name;
+      select.appendChild(opt);
+    });
   });
+
+  /* Load the first covers before allowing the rest of the grid or background cache to compete for bandwidth. */
+  const PRIORITY_COVER_COUNT = 20;
+  const PRIORITY_COVER_BATCH_SIZE = 10;
+  let priorityCoversReady = Promise.resolve();
+
+  function loadCoverImage(image) {
+    if (!image.dataset.src) return;
+    image.src = image.dataset.src;
+    image.removeAttribute("data-src");
+  }
+
+  function loadCoverAndWait(image) {
+    return new Promise(resolve => {
+      if (!image.dataset.src) { resolve(); return; }
+      let timeout;
+      const finish = () => {
+        clearTimeout(timeout);
+        image.removeEventListener("load", finish);
+        image.removeEventListener("error", finish);
+        resolve();
+      };
+      image.addEventListener("load", finish);
+      image.addEventListener("error", finish);
+      timeout = setTimeout(finish, 4000);
+      image.loading = "eager";
+      image.fetchPriority = "high";
+      loadCoverImage(image);
+    });
+  }
+
+  async function loadCoverBatches(images, batchSize) {
+    for (let start = 0; start < images.length; start += batchSize) {
+      await Promise.all(images.slice(start, start + batchSize).map(loadCoverAndWait));
+    }
+  }
+
+  const coverObserver = "IntersectionObserver" in window
+    ? new IntersectionObserver(entries => {
+        entries.forEach(entry => {
+          if (!entry.isIntersecting) return;
+          coverObserver.unobserve(entry.target);
+          loadCoverImage(entry.target);
+        });
+      }, { rootMargin: "300px 0px" })
+    : null;
+
+  function observeCoverImages(images) {
+    images.forEach(image => {
+      if (coverObserver) coverObserver.observe(image);
+      else loadCoverImage(image);
+    });
+  }
+
+  function replaceBookGrid(container, html, priorityCount = 0) {
+    if (coverObserver) {
+      container.querySelectorAll(".cover-image[data-src]").forEach(image => coverObserver.unobserve(image));
+    }
+    container.innerHTML = html;
+    const images = [...container.querySelectorAll(".cover-image[data-src]")];
+    const priorityImages = images.slice(0, priorityCount);
+    const deferredImages = images.slice(priorityCount);
+    const priorityReady = loadCoverBatches(priorityImages, PRIORITY_COVER_BATCH_SIZE);
+    priorityReady.then(() => observeCoverImages(deferredImages));
+    return priorityReady;
+  }
 
   /* ---------- rendering ---------- */
   function coverHTML(book, big, favouriteOrder = 0) {
     const [c1, c2] = book.colors;
     const cover = book.cover;
+    const imageSource = cover ? `${big ? "src" : "data-src"}="${escapeHTML(cover.image)}"` : "";
     const image = cover ? `
-        <img class="cover-image" src="${escapeHTML(cover.image)}" alt="${escapeHTML(book.title)} book cover"
+        <img class="cover-image" ${imageSource} alt="${escapeHTML(book.title)} book cover"
           loading="${big ? "eager" : "lazy"}" decoding="async"${big ? ' fetchpriority="high"' : ""}>` : "";
     return `
-      <div class="cover ${cover ? "has-image" : ""}${favouriteOrder ? " has-favourite-position" : ""}" style="background: linear-gradient(150deg, ${c1}, ${c2})">
+      <div class="cover${favouriteOrder ? " has-favourite-position" : ""}" style="background: linear-gradient(150deg, ${c1}, ${c2})">
         <div class="cover-fallback"${cover ? ' aria-hidden="true"' : ""}>
           <span class="cover-emoji">${book.emoji}</span>
           <span class="cover-name">${escapeHTML(book.title)}</span>
@@ -105,6 +180,7 @@
 
   function cardHTML(book, options = {}) {
     const read = isRead(book.id);
+    const owned = isOwned(book.id);
     const {
       favouriteOrder = 0,
       favouriteTotal = 0,
@@ -119,27 +195,29 @@
           <button class="drag-handle" data-act="drag" aria-label="Drag ${escapeHTML(book.title)} to change its order" title="Drag to reorder">⠿ Drag to reorder</button>
         </div>` : "";
     return `
-      <article class="book-card ${read ? "is-read" : ""}${favouriteOrder ? " favourite-card" : ""}" data-id="${book.id}" aria-label="${escapeHTML(book.title)}"${favouriteOrder ? ' draggable="true"' : ""}>
+      <article class="book-card ${read ? "is-read" : ""}${owned ? " is-owned" : ""}${favouriteOrder ? " favourite-card" : ""}" data-id="${book.id}" aria-label="${escapeHTML(book.title)}"${favouriteOrder ? ' draggable="true"' : ""}>
         ${coverHTML(book, false, favouriteOrder)}
         ${reorderControls}
         <div class="card-actions">
-          <button class="fav-btn" data-act="fav" aria-label="Favourite">${isFav(book.id) ? "💖" : "🤍"}</button>
-          <button class="read-btn ${read ? "done" : ""}" data-act="read">${read ? "Read it! 🌟" : "I read it!"}</button>
+          <button class="own-btn ${owned ? "done" : ""}" data-act="own" aria-pressed="${owned}" aria-label="${owned ? "Remove from owned books" : "Mark as owned"}">📚 ${owned ? "Owned" : "Own"}</button>
+          <button class="fav-btn" data-act="fav" aria-pressed="${isFav(book.id)}" aria-label="${isFav(book.id) ? "Remove from favourites" : "Add to favourites"}">${isFav(book.id) ? "💖" : "🤍"}</button>
+          <button class="read-btn ${read ? "done" : ""}" data-act="read" aria-pressed="${read}">${read ? "Read it! 🌟" : "I read it!"}</button>
         </div>
       </article>`;
   }
 
-  function getFilteredBooks() {
-    const q = searchInput.value.trim().toLowerCase();
-    const ser = seriesFilter.value;
+  function getFilteredBooks(search, series, sort, onlyOwned = false) {
+    const q = search.value.trim().toLowerCase();
+    const ser = series.value;
     let list = BOOKS.filter(b =>
+      (!onlyOwned || isOwned(b.id)) &&
       (!ser || b.series === ser) &&
       (!q || b.title.toLowerCase().includes(q) || b.series.toLowerCase().includes(q) || b.author.toLowerCase().includes(q))
     );
-    const sort = sortSelect.value;
-    if (sort === "az") {
+    const sortValue = sort.value;
+    if (sortValue === "az") {
       list = [...list].sort((a, b) => a.title.localeCompare(b.title));
-    } else if (sort === "fav") {
+    } else if (sortValue === "fav") {
       const favouriteRanks = new Map(state.favs.map((id, index) => [id, index]));
       list = [...list].sort((a, b) => {
         const aRank = favouriteRanks.get(a.id);
@@ -147,18 +225,28 @@
         if (aRank !== undefined && bRank !== undefined) return aRank - bRank;
         return (isFav(b.id) - isFav(a.id)) || ((a.num || 999) - (b.num || 999));
       });
-    } else if (sort === "recent") {
+    } else if (sortValue === "recent") {
       list = [...list].sort((a, b) => readTime(b.id) - readTime(a.id));
-    } else if (sort === "unread") {
+    } else if (sortValue === "unread") {
       list = [...list].sort((a, b) => (isRead(a.id) - isRead(b.id)) || ((a.num || 999) - (b.num || 999)));
     }
     return list;
   }
 
   function renderBooks() {
-    const list = getFilteredBooks();
-    bookGrid.innerHTML = list.map(cardHTML).join("");
+    const list = getFilteredBooks(searchInput, seriesFilter, sortSelect);
+    priorityCoversReady = replaceBookGrid(bookGrid, list.map(cardHTML).join(""), PRIORITY_COVER_COUNT);
     $("#booksEmpty").hidden = list.length > 0;
+  }
+
+  function renderOwned() {
+    const list = getFilteredBooks(ownedSearchInput, ownedSeriesFilter, ownedSortSelect, true);
+    replaceBookGrid(ownedGrid, list.map(cardHTML).join(""));
+    const empty = $("#ownedEmpty");
+    empty.hidden = list.length > 0;
+    empty.textContent = state.owned.length
+      ? "No owned books match those filters! 🔍"
+      : "Tap 📚 Own on a book to add it here!";
   }
 
   function renderRead() {
@@ -168,7 +256,7 @@
       isRead(book.id) &&
       (!q || book.title.toLowerCase().includes(q) || book.series.toLowerCase().includes(q) || book.author.toLowerCase().includes(q))
     ).sort((a, b) => direction * (readTime(a.id) - readTime(b.id)) || a.title.localeCompare(b.title));
-    readGrid.innerHTML = list.map(book => cardHTML(book)).join("");
+    replaceBookGrid(readGrid, list.map(book => cardHTML(book)).join(""));
     const empty = $("#readEmpty");
     empty.hidden = list.length > 0;
     empty.textContent = readCount()
@@ -183,12 +271,12 @@
       .map(id => booksById.get(id))
       .filter(Boolean)
       .filter(book => !status || (status === "read" ? isRead(book.id) : !isRead(book.id)));
-    favGrid.innerHTML = favBooks.map((book, index) => cardHTML(book, {
+    replaceBookGrid(favGrid, favBooks.map((book, index) => cardHTML(book, {
       favouriteOrder: state.favs.indexOf(book.id) + 1,
       favouriteTotal: state.favs.length,
       canMoveUp: index > 0,
       canMoveDown: index < favBooks.length - 1
-    })).join("");
+    })).join(""));
     const empty = $("#favsEmpty");
     empty.hidden = favBooks.length > 0;
     empty.textContent = !state.favs.length
@@ -253,6 +341,7 @@
 
   function renderAll() {
     renderBooks();
+    renderOwned();
     renderRead();
     renderFavs();
     renderBadges();
@@ -346,6 +435,14 @@
     renderAll();
   }
 
+  function toggleOwned(id) {
+    const i = state.owned.indexOf(id);
+    if (i >= 0) state.owned.splice(i, 1);
+    else state.owned.push(id);
+    save();
+    renderAll();
+  }
+
   function moveFavourite(id, offset) {
     const visibleIds = [...favGrid.querySelectorAll(".favourite-card")].map(card => card.dataset.id);
     const visibleFrom = visibleIds.indexOf(id);
@@ -387,6 +484,7 @@
     if (!card) return;
     const id = card.dataset.id;
     const act = e.target.closest("[data-act]")?.dataset.act;
+    if (act === "own") { toggleOwned(id); return; }
     if (act === "fav") { toggleFav(id); return; }
     if (act === "read") { toggleRead(id); return; }
     if (act === "fav-up") { moveFavourite(id, -1); return; }
@@ -395,6 +493,7 @@
     openModal(id);
   }
   bookGrid.addEventListener("click", onGridClick);
+  ownedGrid.addEventListener("click", onGridClick);
   readGrid.addEventListener("click", onGridClick);
   favGrid.addEventListener("click", onGridClick);
 
@@ -492,6 +591,11 @@
   favGrid.addEventListener("pointerup", finishPointerDrag);
   favGrid.addEventListener("pointercancel", finishPointerDrag);
 
+  document.addEventListener("load", e => {
+    if (!e.target.matches?.(".cover-image")) return;
+    e.target.closest(".cover")?.classList.add("has-image");
+  }, true);
+
   /* If a remote cover ever disappears, reveal the original generated fallback. */
   document.addEventListener("error", e => {
     if (!e.target.matches?.(".cover-image")) return;
@@ -512,10 +616,10 @@
     const read = isRead(id);
     const readDate = read ? dateInputValue(state.read[id]) : null;
     modal.innerHTML = `
-      <div class="modal-toolbar">
-        <button class="modal-close" aria-label="Close book details">✕</button>
-      </div>
       <div class="modal-scroll" id="modalScroll">
+        <div class="modal-toolbar">
+          <button class="modal-close" aria-label="Close book details">✕</button>
+        </div>
         ${coverHTML(book, true)}
         <div class="modal-body">
           <span class="series-tag">${book.seriesEmoji} ${book.series}${book.num ? ` · Book #${book.num}` : " · Special Edition"}</span>
@@ -527,23 +631,15 @@
             <span class="read-date-status" id="readDateStatus" role="status" aria-live="polite">Tap the date to change it</span>
           </div>` : ""}
           <div class="modal-actions">
-            <button class="btn btn-ghost" data-act="fav">${isFav(id) ? "💖 Favourited" : "🤍 Favourite"}</button>
-            <button class="btn btn-primary" data-act="read">${read ? "↩️ Not read yet" : "🌟 I read it!"}</button>
+            <button class="btn btn-owned" data-act="own" aria-pressed="${isOwned(id)}">📚 ${isOwned(id) ? "Owned" : "Own this book"}</button>
+            <button class="btn btn-ghost" data-act="fav" aria-pressed="${isFav(id)}">${isFav(id) ? "💖 Favourited" : "🤍 Favourite"}</button>
+            <button class="btn btn-primary" data-act="read" aria-pressed="${read}">${read ? "↩️ Not read yet" : "🌟 I read it!"}</button>
           </div>
         </div>
-      </div>
-      <button class="modal-back-to-top" aria-controls="modalScroll" hidden><span aria-hidden="true">↑</span> Back to top</button>`;
+      </div>`;
     backdrop.hidden = false;
-    const scroller = modal.querySelector(".modal-scroll");
-    const backToTop = modal.querySelector(".modal-back-to-top");
-    scroller.addEventListener("scroll", () => {
-      backToTop.hidden = scroller.scrollTop < 160;
-    }, { passive: true });
-    backToTop.onclick = () => scroller.scrollTo({
-      top: 0,
-      behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"
-    });
     modal.querySelector(".modal-close").onclick = closeModal;
+    modal.querySelector('[data-act="own"]').onclick = () => { toggleOwned(id); openModal(id); };
     modal.querySelector('[data-act="fav"]').onclick = () => { toggleFav(id); openModal(id); };
     modal.querySelector('[data-act="read"]').onclick = () => { toggleRead(id); openModal(id); };
     modal.querySelector("#readDateInput")?.addEventListener("change", e => updateReadDate(id, e.target.value));
@@ -552,6 +648,14 @@
   backdrop.addEventListener("click", e => { if (e.target === backdrop) closeModal(); });
 
   /* ---------- navigation ---------- */
+  const pageBackToTop = $("#pageBackToTop");
+  const longListViews = new Set(["view-books", "view-owned", "view-read", "view-favs"]);
+
+  function updatePageBackToTop() {
+    const activeView = document.querySelector(".view.active");
+    pageBackToTop.hidden = window.scrollY < 600 || !longListViews.has(activeView?.id);
+  }
+
   function showView(viewName) {
       document.querySelectorAll(".nav-btn").forEach(btn => {
         const active = btn.dataset.view === viewName;
@@ -565,17 +669,26 @@
       document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
       $("#view-" + viewName)?.classList.add("active");
       window.scrollTo({ top: 0 });
+      updatePageBackToTop();
   }
 
   document.querySelectorAll(".nav-btn, .settings-btn").forEach(btn => {
     btn.addEventListener("click", () => showView(btn.dataset.view));
   });
+  window.addEventListener("scroll", updatePageBackToTop, { passive: true });
+  pageBackToTop.addEventListener("click", () => window.scrollTo({
+    top: 0,
+    behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"
+  }));
 
   /* ---------- search / filter / sort ---------- */
   searchInput.addEventListener("input", renderBooks);
+  ownedSearchInput.addEventListener("input", renderOwned);
   readSearchInput.addEventListener("input", renderRead);
   seriesFilter.addEventListener("change", renderBooks);
+  ownedSeriesFilter.addEventListener("change", renderOwned);
   sortSelect.addEventListener("change", renderBooks);
+  ownedSortSelect.addEventListener("change", renderOwned);
   readSortSelect.value = state.readSort;
   readSortSelect.addEventListener("change", () => {
     state.readSort = readSortSelect.value === "oldest" ? "oldest" : DEFAULT_READ_SORT;
@@ -596,10 +709,11 @@
   $("#exportBtn").addEventListener("click", () => {
     const payload = {
       app: "jessica-bookshelf",
-      version: 2,
+      version: 3,
       exportedAt: new Date().toISOString(),
       read: state.read,
       favs: state.favs,
+      owned: state.owned,
       shelfName: state.shelfName,
       readSort: state.readSort
     };
@@ -624,11 +738,13 @@
         if (merge) {
           state.read = { ...state.read, ...data.read };
           state.favs = [...new Set([...state.favs, ...(Array.isArray(data.favs) ? data.favs : [])])];
+          state.owned = [...new Set([...state.owned, ...(Array.isArray(data.owned) ? data.owned : [])])];
           if (typeof data.shelfName === "string" && data.shelfName.trim()) state.shelfName = cleanShelfName(data.shelfName);
           if (data.readSort === "oldest" || data.readSort === "newest") state.readSort = data.readSort;
         } else {
           state.read = data.read || {};
           state.favs = Array.isArray(data.favs) ? [...new Set(data.favs)] : [];
+          state.owned = Array.isArray(data.owned) ? [...new Set(data.owned)] : [];
           state.shelfName = cleanShelfName(data.shelfName);
           state.readSort = data.readSort === "oldest" ? "oldest" : DEFAULT_READ_SORT;
         }
@@ -646,7 +762,7 @@
   });
 
   $("#resetBtn").addEventListener("click", () => {
-    if (confirm("Really wipe ALL read books, favourites and badges on this device?")) {
+    if (confirm("Really wipe ALL owned books, read books, favourites and badges on this device?")) {
       state = { ...defaultState(), shelfName: state.shelfName, readSort: state.readSort };
       save();
       renderAll();
@@ -704,13 +820,33 @@
     }
   }
 
-  /* ---------- service worker ---------- */
-  if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("sw.js").catch(() => {});
-  }
-
   /* ---------- go! ---------- */
   state.badges = earnedBadges();
   save();
   renderAll();
+  updatePageBackToTop();
+
+  /* ---------- service worker ---------- */
+  if ("serviceWorker" in navigator) {
+    const coverUrls = BOOKS.map(book => book.cover?.image).filter(Boolean);
+    const cacheCovers = async worker => {
+      await priorityCoversReady;
+      worker?.postMessage({ type: "CACHE_COVERS", urls: coverUrls });
+    };
+
+    navigator.serviceWorker.register("sw.js").then(registration => {
+      const newestWorker = registration.installing || registration.waiting;
+      if (!newestWorker) {
+        cacheCovers(registration.active);
+        return;
+      }
+      if (newestWorker.state === "activated") {
+        cacheCovers(newestWorker);
+        return;
+      }
+      newestWorker.addEventListener("statechange", e => {
+        if (e.target.state === "activated") cacheCovers(e.target);
+      });
+    }).catch(() => {});
+  }
 })();

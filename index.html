@@ -55,6 +55,31 @@
       <p class="empty-msg" id="booksEmpty" hidden>No books found… try another title! 📚</p>
     </section>
 
+    <!-- OWNED BOOKS VIEW -->
+    <section id="view-owned" class="view">
+      <h2 class="view-title">📚 Books I Own</h2>
+      <div class="toolbar">
+        <div class="search-box">
+          <span aria-hidden="true">🔍</span>
+          <input type="search" id="ownedSearchInput" placeholder="Search books owned…" autocomplete="off">
+        </div>
+        <div class="filter-row">
+          <select id="ownedSeriesFilter" aria-label="Filter owned books by series">
+            <option value="">All series</option>
+          </select>
+          <select id="ownedSortSelect" aria-label="Sort owned books">
+            <option value="number">Book order</option>
+            <option value="fav">Favourites first</option>
+            <option value="az">A to Z</option>
+            <option value="recent">Recently read</option>
+            <option value="unread">Not read yet</option>
+          </select>
+        </div>
+      </div>
+      <div class="book-grid" id="ownedGrid"></div>
+      <p class="empty-msg" id="ownedEmpty" hidden></p>
+    </section>
+
     <!-- BOOKS READ VIEW -->
     <section id="view-read" class="view">
       <h2 class="view-title">🌟 Books Read</h2>
@@ -128,7 +153,7 @@
       </div>
       <div class="settings-card danger">
         <h3>🧹 Start again</h3>
-        <p>This wipes all read books, favourites and badges on this device.</p>
+        <p>This wipes all owned books, read books, favourites and badges on this device.</p>
         <button class="btn btn-danger" id="resetBtn">Reset everything</button>
       </div>
       <p class="credits">Made with ✨ for a very special reader.<br>Book covers from <a href="https://openlibrary.org/authors/OL2623989A/David_Walliams" target="_blank" rel="noopener noreferrer">Open Library (David Walliams)</a> and <a href="https://openlibrary.org/authors/OL34184A/Roald_Dahl" target="_blank" rel="noopener noreferrer">Open Library (Roald Dahl)</a>.</p>
@@ -138,10 +163,13 @@
   <!-- BOTTOM NAV -->
   <nav class="bottom-nav">
     <button class="nav-btn active" data-view="books" aria-current="page"><span>📚</span>Books</button>
+    <button class="nav-btn" data-view="owned"><span>📖</span>Owned</button>
     <button class="nav-btn" data-view="read"><span>🌟</span>Books Read</button>
     <button class="nav-btn" data-view="favs"><span>💖</span>Favourites</button>
     <button class="nav-btn" data-view="badges"><span>🏅</span>Badges</button>
   </nav>
+
+  <button class="page-back-to-top" id="pageBackToTop" aria-label="Back to top" hidden><span aria-hidden="true">↑</span> Top</button>
 
   <!-- BOOK DETAIL MODAL -->
   <div class="modal-backdrop" id="modalBackdrop" hidden>

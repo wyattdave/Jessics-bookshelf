@@ -20,7 +20,7 @@ const BOOK_COVERS = {
   "b17": {"image":"https://covers.openlibrary.org/b/id/15154258-L.jpg","page":"https://openlibrary.org/works/OL37831873W","source":"Open Library"},
   "b18": {"image":"https://covers.openlibrary.org/b/id/15170048-L.jpg","page":"https://openlibrary.org/works/OL39128539W","source":"Open Library"},
   "b19": {"image":"https://covers.openlibrary.org/b/id/12689068-L.jpg","page":"https://openlibrary.org/works/OL20065223W","source":"Open Library"},
-  "b20": {"image":"https://covers.openlibrary.org/b/id/15101588-L.jpg","page":"https://openlibrary.org/works/OL21133235W","source":"Open Library"},
+  "b20": {"image":"covers/worstchildren2.jpg","page":"https://openlibrary.org/works/OL21133235W","source":"Publisher"},
   "b21": {"image":"https://covers.openlibrary.org/b/id/10874582-L.jpg","page":"https://openlibrary.org/works/OL17933520W","source":"Open Library"},
   "b22": {"image":"https://covers.openlibrary.org/b/id/8773458-L.jpg","page":"https://openlibrary.org/works/OL20115515W","source":"Open Library"},
   "b23": {"image":"https://covers.openlibrary.org/b/id/12689044-L.jpg","page":"https://openlibrary.org/works/OL21703792W","source":"Open Library"},

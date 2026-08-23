@@ -1,4 +1,4 @@
-const CACHE = "jessica-bookshelf-v1.2";
+const CACHE = "jessica-bookshelf-v1.4";
 const COVER_CACHE = "jessica-bookshelf-covers-v1";
 const PRIORITY_COVER_COUNT = 20;
 const COVER_CHUNK_SIZE = 20;
@@ -16,6 +16,7 @@ const SHELL = [
   "manifest.webmanifest",
   "covers/b25.jpg",
   "covers/b26.jpg",
+  "covers/worstchildren2.jpg",
   "icons/icon.svg",
   "icons/icon-maskable.svg"
 ];

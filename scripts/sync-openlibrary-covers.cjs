@@ -44,9 +44,9 @@ const PUBLISHER_FALLBACKS = {
     source: "Open Library",
   },
   b20: {
-    image: "https://covers.openlibrary.org/b/id/15101588-L.jpg",
+    image: "covers/worstchildren2.jpg",
     page: "https://openlibrary.org/works/OL21133235W",
-    source: "Open Library",
+    source: "Publisher",
   },
   // No cover art on Open Library yet; official covers stored in covers/.
   b25: {
