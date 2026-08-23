@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#17958f">
+  <meta name="description" content="Jessica's David Walliams &amp; Roald Dahl reading tracker">
+  <title>Jessica's Bookshelf</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Luckiest+Guy&family=Quicksand:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <div class="sparkle-layer" aria-hidden="true"></div>
+
+  <header class="app-header">
+    <button class="settings-btn" id="settingsBtn" data-view="settings" aria-label="Open settings" title="Settings">⚙</button>
+    <div class="header-top">
+      <span class="tiara" aria-hidden="true">📚</span>
+      <h1 id="bookshelfTitle">Jessica's Bookshelf</h1>
+      <span class="tiara flip" aria-hidden="true">🐛</span>
+    </div>
+    <div class="progress-wrap">
+      <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+      <p class="progress-text" id="progressText"></p>
+    </div>
+  </header>
+
+  <main>
+    <!-- BOOKS VIEW -->
+    <section id="view-books" class="view active">
+      <div class="toolbar">
+        <div class="search-box">
+          <span aria-hidden="true">🔍</span>
+          <input type="search" id="searchInput" placeholder="Search for a book…" autocomplete="off">
+        </div>
+        <div class="filter-row">
+          <select id="seriesFilter" aria-label="Filter by series">
+            <option value="">All series</option>
+          </select>
+          <select id="sortSelect" aria-label="Sort books">
+            <option value="number">Book order</option>
+            <option value="fav">Favourites first</option>
+            <option value="az">A to Z</option>
+            <option value="recent">Recently read</option>
+            <option value="unread">Not read yet</option>
+          </select>
+        </div>
+      </div>
+      <div class="book-grid" id="bookGrid"></div>
+      <p class="empty-msg" id="booksEmpty" hidden>No books found… try another title! 📚</p>
+    </section>
+
+    <!-- BOOKS READ VIEW -->
+    <section id="view-read" class="view">
+      <h2 class="view-title">🌟 Books Read</h2>
+      <div class="toolbar">
+        <div class="search-box">
+          <span aria-hidden="true">🔍</span>
+          <input type="search" id="readSearchInput" placeholder="Search books read…" autocomplete="off">
+        </div>
+        <div class="filter-row read-sort-row">
+          <select id="readSortSelect" aria-label="Sort books by date read">
+            <option value="newest">Newest read first</option>
+            <option value="oldest">Oldest read first</option>
+          </select>
+        </div>
+      </div>
+      <div class="book-grid" id="readGrid"></div>
+      <p class="empty-msg" id="readEmpty" hidden></p>
+    </section>
+
+    <!-- FAVOURITES VIEW -->
+    <section id="view-favs" class="view">
+      <h2 class="view-title">💖 My Favourites</h2>
+      <p class="view-intro">Use the arrows or drag <span aria-hidden="true">⠿</span> to choose their order.</p>
+      <div class="toolbar favourites-toolbar">
+        <div class="filter-row">
+          <select id="favReadFilter" aria-label="Filter favourites by reading status">
+            <option value="">All favourites</option>
+            <option value="read">Read</option>
+            <option value="unread">Unread</option>
+          </select>
+        </div>
+      </div>
+      <div class="book-grid" id="favGrid"></div>
+      <p class="empty-msg" id="favsEmpty" hidden></p>
+      <p class="sr-only" id="favOrderStatus" aria-live="polite"></p>
+    </section>
+
+    <!-- BADGES VIEW -->
+    <section id="view-badges" class="view">
+      <h2 class="view-title">🏅 My Reading Badges</h2>
+      <div class="badge-stats" id="badgeStats"></div>
+      <h3 class="badge-heading">Reading Milestones</h3>
+      <div class="badge-grid" id="milestoneGrid"></div>
+      <h3 class="badge-heading">Series Complete!</h3>
+      <div class="badge-grid" id="seriesBadgeGrid"></div>
+    </section>
+
+    <!-- SETTINGS VIEW -->
+    <section id="view-settings" class="view">
+      <h2 class="view-title">⚙️ Settings</h2>
+      <form class="settings-card" id="bookshelfNameForm">
+        <h3>📚 Bookshelf name</h3>
+        <p>Choose whose Bookshelf this is.</p>
+        <label class="settings-label" for="shelfNameInput">Reader's name</label>
+        <div class="settings-input-row">
+          <input type="text" id="shelfNameInput" value="Jessica" maxlength="40" autocomplete="name" required>
+          <button class="btn btn-primary" type="submit">Save name</button>
+        </div>
+        <span class="settings-status" id="shelfNameStatus" role="status" aria-live="polite"></span>
+      </form>
+      <div class="settings-card">
+        <h3>📤 Take your bookshelf with you</h3>
+        <p>Save your reading progress to a file, then open it on another tablet or phone.</p>
+        <button class="btn btn-primary" id="exportBtn">Export my data</button>
+      </div>
+      <div class="settings-card">
+        <h3>📥 Bring your bookshelf here</h3>
+        <p>Choose a file you exported on another device.</p>
+        <input type="file" id="importFile" accept="application/json,.json" hidden>
+        <button class="btn btn-primary" id="importBtn">Import data</button>
+      </div>
+      <div class="settings-card danger">
+        <h3>🧹 Start again</h3>
+        <p>This wipes all read books, favourites and badges on this device.</p>
+        <button class="btn btn-danger" id="resetBtn">Reset everything</button>
+      </div>
+      <p class="credits">Made with ✨ for a very special reader.<br>Book covers from <a href="https://openlibrary.org/authors/OL2623989A/David_Walliams" target="_blank" rel="noopener noreferrer">Open Library (David Walliams)</a> and <a href="https://openlibrary.org/authors/OL34184A/Roald_Dahl" target="_blank" rel="noopener noreferrer">Open Library (Roald Dahl)</a>.</p>
+    </section>
+  </main>
+
+  <!-- BOTTOM NAV -->
+  <nav class="bottom-nav">
+    <button class="nav-btn active" data-view="books" aria-current="page"><span>📚</span>Books</button>
+    <button class="nav-btn" data-view="read"><span>🌟</span>Books Read</button>
+    <button class="nav-btn" data-view="favs"><span>💖</span>Favourites</button>
+    <button class="nav-btn" data-view="badges"><span>🏅</span>Badges</button>
+  </nav>
+
+  <!-- BOOK DETAIL MODAL -->
+  <div class="modal-backdrop" id="modalBackdrop" hidden>
+    <div class="modal" role="dialog" aria-modal="true" id="bookModal"></div>
+  </div>
+
+  <!-- BADGE POPUP -->
+  <div class="badge-popup" id="badgePopup" hidden>
+    <div class="badge-popup-inner">
+      <div class="badge-popup-emoji" id="badgePopupEmoji"></div>
+      <h2 id="badgePopupName"></h2>
+      <p id="badgePopupDesc"></p>
+      <button class="btn btn-primary" id="badgePopupClose">Yay! ✨</button>
+    </div>
+  </div>
+
+  <canvas id="confetti" aria-hidden="true"></canvas>
+
+  <script src="js/covers.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

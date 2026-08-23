@@ -1,0 +1,25 @@
+{
+  "name": "Jessica's Bookshelf",
+  "short_name": "Jess's Books",
+  "description": "Jessica's David Walliams & Roald Dahl reading tracker",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#eefaf8",
+  "theme_color": "#17958f",
+  "icons": [
+    {
+      "src": "icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-maskable.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}
